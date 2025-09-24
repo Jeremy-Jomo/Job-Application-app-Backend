@@ -72,4 +72,13 @@ class Application(db.Model, SerializerMixin):
     #serialization
     serialize_rules = ("-applicant.applications", "-job.applications",)
 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "job_id": self.job_id,
+            "cover_letter": self.cover_letter,
+            "status": self.status
+        }
+
 
