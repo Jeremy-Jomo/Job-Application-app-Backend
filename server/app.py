@@ -105,7 +105,24 @@ def get_applications():
     applications = Application.query.all()
     return jsonify([application.to_dict() for application in applications])
 
+@app.route("applications", method = ["POST"])
+def create_application():
+    data = request.get_json()
 
+    if not data.get("user_id") or not data.get("job_id") or not data.get("cover_letter"):
+        return jsonify({"error": "user id, job id and cover letter required"}), 400
+
+    new_application = Application(
+        user_id = data["user_id"]
+        job_id = data["job_id"]
+        cover_letter =  data["cover_letter"]
+        status = data.get("status", "pending")
+    )
+
+    db.session.add(new_application)
+    db.session.commit()
+
+    return jsonify(new_application.to_dict()), 201
 
 
 
