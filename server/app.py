@@ -10,6 +10,9 @@ app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+db.init_app(app)
+migrate = Migrate(app, db)
+
 #route tester
 @app.route("/")
 def home():
@@ -99,9 +102,44 @@ def delete_job(id):
     db.session.commit()
     return jsonify({"message": "Job deleted"})
 
+#APPLICATIONS routes
+@app.route("/applications", methods = ["GET"])
+def get_applications():
+    applications = Application.query.all()
+    return jsonify([application.to_dict() for application in applications])
 
-db.init_app(app)
-migrate = Migrate(app, db)
+@app.route("/applications", methods = ["POST"])
+def create_application():
+    data = request.get_json()
+
+    if not data.get("user_id") or not data.get("job_id") or not data.get("cover_letter"):
+        return jsonify({"error": "user id, job id and cover letter required"}), 400
+
+    new_application = Application(
+        user_id = data["user_id"],
+        job_id = data["job_id"],
+        cover_letter =  data["cover_letter"],
+        status = data.get("status", "pending")
+    )
+
+    db.session.add(new_application)
+    db.session.commit()
+
+    return jsonify(new_application.to_dict()), 201
+
+@app.route("/jobs/<int:job_id>/applications", methods = ["GET"])
+def get_applications_by_id(job_id):
+    apps = Application.query.filter_by(job_id=job_id).all()
+    return jsonify([application.to_dict() for application in apps])
+
+@app.route("/users/<int:user_id>/applications", methods = ["GET"])
+def get_user_applications(user_id):
+    apps = Application.query.filter_by(user_id=user_id).all()
+
+    if not apps:
+        return jsonify({"message": "No applications found for this user"}), 404
+
+    return jsonify([a.to_dict() for a in apps]), 200
 
 
 if __name__ == "__main__":
