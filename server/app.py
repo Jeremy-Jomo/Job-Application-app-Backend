@@ -132,6 +132,15 @@ def get_applications_by_id(job_id):
     apps = Application.query.filter_by(job_id=job_id).all()
     return jsonify([application.to_dict() for application in apps])
 
+@app.route("/users/<int:user_id>/applications", methods = ["GET"])
+def get_user_applications(user_id):
+    apps = Application.query.filter_by(user_id=user_id).all()
+
+    if not apps:
+        return jsonify({"message": "No applications found for this user"}), 404
+
+    return jsonify([a.to_dict() for a in apps]), 200
+
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
