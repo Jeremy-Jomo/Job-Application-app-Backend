@@ -21,6 +21,29 @@ def home():
     return "<h1>JOMO THE GOAT</h1>"
 
 
+@app.route("/login", methods=["POST"])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    # Check if user exists
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    # Query the database for this user
+    user = User.query.filter_by(username=username).first()
+
+    if user.password == password:
+        return jsonify({
+            "success": True,
+            "message": "Login successful",
+            "user": {"id": user.id, "username": user.username}
+        }), 200
+
+    return jsonify({"success": False, "message": "Invalid username or password"}), 401
+
 #USER routes
 @app.route("/users",methods=["GET"])
 def get_users ():
@@ -76,7 +99,7 @@ def create_job():
               location=location, user_id=user_id)
     db.session.add(job)
     db.session.commit()
-    return [job.to_dict(only=("id", "title", "description", "company", "location", "user_id")) for job in jobs], 200
+    return [job.to_dict(only=("id", "title", "description", "company", "location", "user_id")) for job in job], 200
 
 
 @app.route("/jobs/<int:id>", methods=["GET"])
