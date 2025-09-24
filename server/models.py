@@ -33,6 +33,8 @@ class User(db.Model, SerializerMixin):
     #serialization
     serialize_rules = ("-jobs.poster", "-applications.applicant",)
 
+    
+
 #creates job model
 class Job (db.Model, SerializerMixin):
     __tablename__ = 'jobs'
