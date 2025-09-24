@@ -10,6 +10,9 @@ app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+db.init_app(app)
+migrate = Migrate(app, db)
+
 #route tester
 @app.route("/")
 def home():
@@ -124,10 +127,10 @@ def create_application():
 
     return jsonify(new_application.to_dict()), 201
 
-
-
-db.init_app(app)
-migrate = Migrate(app, db)
+@app.route("/jobs/<int:job_id>/applications", methods = ["GET"])
+def get_applications_by_id(job_id):
+    apps = Application.query.filter_by(job_id=job_id).all()
+    return jsonify([application.to_dict() for application in apps])
 
 
 if __name__ == "__main__":
