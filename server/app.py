@@ -99,6 +99,15 @@ def delete_job(id):
     db.session.commit()
     return jsonify({"message": "Job deleted"})
 
+#APPLICATIONS routes
+@app.route("/applications", methods = ["GET"])
+def get_applications():
+    applications = Application.query.all()
+    return jsonify([application.to_dict() for application in applications])
+
+
+
+
 
 db.init_app(app)
 migrate = Migrate(app, db)
