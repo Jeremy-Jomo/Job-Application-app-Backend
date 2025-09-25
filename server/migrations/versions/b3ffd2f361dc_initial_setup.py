@@ -1,8 +1,8 @@
-"""initial migration
+"""initial setup
 
-Revision ID: 1488c1dd6b50
+Revision ID: b3ffd2f361dc
 Revises: 
-Create Date: 2025-09-23 09:19:00.436784
+Create Date: 2025-09-25 16:02:26.912889
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = '1488c1dd6b50'
+revision = 'b3ffd2f361dc'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -24,9 +24,9 @@ def upgrade():
     sa.Column('email', sa.String(), nullable=False),
     sa.Column('role', sa.String(), nullable=False),
     sa.Column('password', sa.String(), nullable=False),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_users')),
-    sa.UniqueConstraint('email', name=op.f('uq_users_email')),
-    sa.UniqueConstraint('username', name=op.f('uq_users_username'))
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('email'),
+    sa.UniqueConstraint('username')
     )
     op.create_table('jobs',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -35,8 +35,8 @@ def upgrade():
     sa.Column('location', sa.String(), nullable=False),
     sa.Column('company', sa.String(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_jobs_user_id_users')),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_jobs'))
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('applications',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -44,9 +44,9 @@ def upgrade():
     sa.Column('cover_letter', sa.String(), nullable=True),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('job_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['job_id'], ['jobs.id'], name=op.f('fk_applications_job_id_jobs')),
-    sa.ForeignKeyConstraint(['user_id'], ['users.id'], name=op.f('fk_applications_user_id_users')),
-    sa.PrimaryKeyConstraint('id', name=op.f('pk_applications'))
+    sa.ForeignKeyConstraint(['job_id'], ['jobs.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
     )
     # ### end Alembic commands ###
 
