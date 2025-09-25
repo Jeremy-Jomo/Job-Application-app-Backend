@@ -4,6 +4,8 @@ from flask import Flask,request ,jsonify
 from flask_migrate import Migrate
 from sqlalchemy_serializer import SerializerMixin
 from flask_cors import CORS
+from flask_bcrypt import Bcrypt
+bcrypt = Bcrypt()
 
 
 app = Flask(__name__)
@@ -13,6 +15,7 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
+bcrypt.init_app(app)
 migrate = Migrate(app, db)
 
 #route tester
@@ -32,10 +35,8 @@ def login():
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # Query the database for this user
-    user = User.query.filter_by(username=username).first()
 
-    if user.password == password:
+    if user and user.check_password(password):
         return jsonify({
             "success": True,
             "message": "Login successful",
@@ -58,6 +59,9 @@ def get_user_by_id(id):
 @app.route("/users",methods=["POST"])
 def create_user():
     data = request.get_json()
+    existing_user = User.query.filter_by(email=data["email"]).first()
+    if existing_user:
+        return jsonify({"success": False, "message": "Email already registered"}), 400
 
     if not data.get("username") or not data.get("email") or not data.get("password"):
         return jsonify({"error":"username, email and password are required"})
@@ -70,7 +74,12 @@ def create_user():
 
     db.session.add(new_user)
     db.session.commit()
-    return jsonify(new_user.to_dict(only=("id", "username", "email", "role"))),201
+    return jsonify({
+    "success": True,
+    "message": "User created successfully",
+    "user": new_user.to_dict(only=("id", "username", "email", "role"))
+     }), 201
+
 
 #JOB routes
 @app.route("/jobs", methods=["GET"])
@@ -99,7 +108,8 @@ def create_job():
               location=location, user_id=user_id)
     db.session.add(job)
     db.session.commit()
-    return [job.to_dict(only=("id", "title", "description", "company", "location", "user_id")) for job in job], 200
+    return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id"))), 201
+
 
 
 @app.route("/jobs/<int:id>", methods=["GET"])

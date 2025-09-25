@@ -1,8 +1,9 @@
 # seed.py
 from app import app
-from models import db, User, Job, Application
+from models import  User, Job, Application
 from faker import Faker
 import random
+from extensions import db
 
 fake = Faker()
 
@@ -17,7 +18,7 @@ with app.app_context():
         user = User(
             username=fake.unique.user_name(),
             email=fake.unique.email(),
-            role=random.choice(["user", "recruiter", "admin"]),
+            role=random.choice([ "Job Seeker", "Employer"]),
             password="password123"
         )
         users.append(user)

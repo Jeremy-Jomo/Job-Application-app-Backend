@@ -3,6 +3,7 @@ from sqlalchemy import MetaData
 from sqlalchemy.orm import validates
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy_serializer import SerializerMixin
+from extensions import db, bcrypt
 
 metadata = MetaData(
     naming_convention={
@@ -14,7 +15,7 @@ metadata = MetaData(
     }
 )
 
-db = SQLAlchemy(metadata=metadata)
+
 
 #creates user model
 class User(db.Model, SerializerMixin):
@@ -24,7 +25,7 @@ class User(db.Model, SerializerMixin):
     username = db.Column(db.String, unique=True, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
     role = db.Column(db.String, nullable=False, default='user')
-    password = db.Column(db.String, nullable=False)
+    _password = db.Column("password", db.String, nullable=False)
 
     #relatioships
     jobs = db.relationship("Job", back_populates="poster", cascade="all, delete-orphan")
@@ -33,7 +34,17 @@ class User(db.Model, SerializerMixin):
     #serialization
     serialize_rules = ("-jobs.poster", "-applications.applicant",)
 
-    
+      # password property
+    @property
+    def password(self):
+        raise AttributeError("Password is write-only.")
+
+    @password.setter
+    def password(self, plaintext_password):
+        self._password = bcrypt.generate_password_hash(plaintext_password).decode("utf-8")
+
+    def check_password(self, plaintext_password):
+        return bcrypt.check_password_hash(self._password, plaintext_password)
 
 #creates job model
 class Job (db.Model, SerializerMixin):
