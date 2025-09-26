@@ -33,7 +33,7 @@ with app.app_context():
             description=fake.text(max_nb_chars=200),
             location=fake.city(),
             company=fake.company(),
-            user_id=random.choice(users).id  # recruiter/employer
+            user_id=random.choice(users).id  # jobseeker/employer
         )
         jobs.append(job)
     db.session.add_all(jobs)
