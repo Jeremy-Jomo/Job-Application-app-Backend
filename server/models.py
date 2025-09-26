@@ -24,7 +24,7 @@ class User(db.Model, SerializerMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String, unique=True, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
-    role = db.Column(db.String, nullable=False, default='user')
+    role = db.Column(db.String, nullable=False, default='job-seeker')
     _password = db.Column("password", db.String, nullable=False)
 
     #relatioships
