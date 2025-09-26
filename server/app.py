@@ -282,34 +282,9 @@ def get_user_applications(user_id):
 
     return jsonify(result), 200
 
-@app.route("/applications/<int:app_id>", methods=["PATCH"])
-def update_application(app_id):
-    app_entry = Application.query.get_or_404(app_id)
-    data = request.json
-    if "status" in data:
-        app_entry.status = data["status"]
-        db.session.commit()
-    return jsonify(app_entry.to_dict())
-
-@app.route("/applications/<int:id>", methods=["DELETE"])
-def delete_application(id):
-    application = Application.query.get_or_404(id)
-
-    # Optional: check that logged-in user owns this application
-    if g.user is None or g.user.id != application.user_id:
-        return jsonify({"error": "Unauthorized"}), 403
-
-    db.session.delete(application)
-    db.session.commit()
-    return jsonify({"message": "Application withdrawn successfully"}), 200
 
 
 
-
-    if not apps:
-        return jsonify({"message": "No applications found for this user"}), 404
-
-    return jsonify([a.to_dict() for a in apps]), 200
 @app.route("/applications/<int:application_id>", methods=["PATCH"])
 def update_application(application_id):
     application = Application.query.get_or_404(application_id)
