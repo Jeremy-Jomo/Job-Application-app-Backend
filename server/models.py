@@ -94,8 +94,10 @@ class Application(db.Model, SerializerMixin):
             "job_id": self.job_id,
             "cover_letter": self.cover_letter,
             "status": self.status,
+            "job_title": self.job.title if self.job else None,
+            "company": self.job.company if self.job else None,
+            "location": self.job.location if self.job else None,
+            "status": self.status,
             "name": self.name,
             "email": self.email,
         }
-
-
