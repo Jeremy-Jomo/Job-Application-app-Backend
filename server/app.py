@@ -1,15 +1,14 @@
-from models import db ,User,Job,Application
-from flask import Flask,request ,jsonify
-
+from models import User, Job, Application
+from flask import Flask, request, jsonify, session, g
 from flask_migrate import Migrate
 from sqlalchemy_serializer import SerializerMixin
 from flask_cors import CORS
-from flask_bcrypt import Bcrypt
-bcrypt = Bcrypt()
-
+from extensions import db, bcrypt
 
 app = Flask(__name__)
-CORS(app)
+app.secret_key = "super-secret-key"
+
+CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -18,45 +17,93 @@ db.init_app(app)
 bcrypt.init_app(app)
 migrate = Migrate(app, db)
 
-#route tester
+
+# ----------------------
+# Before request hook
+# ----------------------
+@app.before_request
+def load_logged_in_user():
+    user_id = session.get("user_id")
+    if user_id is None:
+        g.user = None
+    else:
+        g.user = User.query.get(user_id)
+
+
+# ----------------------
+# Route tester
+# ----------------------
 @app.route("/")
 def home():
     return "<h1>JOMO THE GOAT</h1>"
 
 
+# ----------------------
+# Authentication
+# ----------------------
 @app.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
+    username = data.get("username")
+    password = data.get("password")
 
-    # Check if user exists
     user = User.query.filter_by(username=username).first()
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+    if not user or not user.check_password(password):
+        return jsonify({"success": False, "message": "Invalid username or password"}), 401
+
+    # Store session
+    session["user_id"] = user.id
+    session["role"] = user.role
+
+    return jsonify({
+        "success": True,
+        "message": "Login successful",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "role": user.role
+        }
+    }), 200
 
 
-    if user and user.check_password(password):
-        return jsonify({
-            "success": True,
-            "message": "Login successful",
-            "user": {"id": user.id, "username": user.username}
-        }), 200
+@app.route("/check-session", methods=["GET"])
+def check_session():
+    if not g.user:
+        return jsonify({"logged_in": False}), 401
 
-    return jsonify({"success": False, "message": "Invalid username or password"}), 401
+    return jsonify({
+        "logged_in": True,
+        "user": {
+            "id": g.user.id,
+            "username": g.user.username,
+            "role": g.user.role
+        }
+    }), 200
 
-#USER routes
-@app.route("/users",methods=["GET"])
-def get_users ():
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.pop("user_id", None)
+    return jsonify({"message": "Logged out"}), 200
+
+
+
+# ----------------------
+# User routes
+# ----------------------
+@app.route("/users", methods=["GET"])
+def get_users():
     users = User.query.all()
     return [user.to_dict(only=("id", "username", "email", "role")) for user in users], 200
+
 
 @app.route("/users/<int:id>")
 def get_user_by_id(id):
     user = User.query.get(id)
-    return user.to_dict(only=("id", "username", "email", "role")),200
+    return user.to_dict(only=("id", "username", "email", "role")), 200
 
-@app.route("/users",methods=["POST"])
+
+@app.route("/users", methods=["POST"])
 def create_user():
     data = request.get_json()
     existing_user = User.query.filter_by(email=data["email"]).first()
@@ -64,7 +111,8 @@ def create_user():
         return jsonify({"success": False, "message": "Email already registered"}), 400
 
     if not data.get("username") or not data.get("email") or not data.get("password"):
-        return jsonify({"error":"username, email and password are required"})
+        return jsonify({"error": "username, email and password are required"})
+
     new_user = User(
         username=data["username"],
         email=data["email"],
@@ -75,13 +123,15 @@ def create_user():
     db.session.add(new_user)
     db.session.commit()
     return jsonify({
-    "success": True,
-    "message": "User created successfully",
-    "user": new_user.to_dict(only=("id", "username", "email", "role"))
-     }), 201
+        "success": True,
+        "message": "User created successfully",
+        "user": new_user.to_dict(only=("id", "username", "email", "role"))
+    }), 201
 
 
-#JOB routes
+# ----------------------
+# Job routes
+# ----------------------
 @app.route("/jobs", methods=["GET"])
 def get_jobs():
     jobs = Job.query.all()
@@ -90,33 +140,36 @@ def get_jobs():
 
 @app.route("/jobs", methods=["POST"])
 def create_job():
+    if not g.user:
+        return jsonify({"error": "Unauthorized"}), 401
+    if g.user.role.lower() != "employer":
+        return jsonify({"error": "Only employers can post jobs"}), 403
+
     data = request.get_json()
     title = data.get("title")
     description = data.get("description")
     company = data.get("company")
     location = data.get("location")
-    user_id = data.get("user_id")
 
     if not title or not description:
         return jsonify({"error": "Title and description are required"}), 400
 
-    employer = User.query.get(user_id)
-    if not employer or employer.role != "employer":
-        return jsonify({"error": "Invalid employer"}), 400
-
-    job = Job(title=title, description=description, company=company,
-              location=location, user_id=user_id)
+    job = Job(
+        title=title,
+        description=description,
+        company=company,
+        location=location,
+        user_id=g.user.id  # ✅ use logged-in employer
+    )
     db.session.add(job)
     db.session.commit()
     return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id"))), 201
-
 
 
 @app.route("/jobs/<int:id>", methods=["GET"])
 def get_job(id):
     job = Job.query.get_or_404(id)
     return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id")))
-
 
 
 @app.route("/jobs/<int:id>", methods=["PUT"])
@@ -130,6 +183,7 @@ def update_job(id):
     db.session.commit()
     return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id")))
 
+
 @app.route("/jobs/<int:id>", methods=["DELETE"])
 def delete_job(id):
     job = Job.query.get_or_404(id)
@@ -137,13 +191,17 @@ def delete_job(id):
     db.session.commit()
     return jsonify({"message": "Job deleted"})
 
-#APPLICATIONS routes
-@app.route("/applications", methods = ["GET"])
+
+# ----------------------
+# Applications routes
+# ----------------------
+@app.route("/applications", methods=["GET"])
 def get_applications():
     applications = Application.query.all()
     return jsonify([application.to_dict() for application in applications])
 
-@app.route("/applications", methods = ["POST"])
+
+@app.route("/applications", methods=["POST"])
 def create_application():
     data = request.get_json()
 
@@ -151,10 +209,10 @@ def create_application():
         return jsonify({"error": "user id, job id and cover letter required"}), 400
 
     new_application = Application(
-        user_id = data["user_id"],
-        job_id = data["job_id"],
-        cover_letter =  data["cover_letter"],
-        status = data.get("status", "pending")
+        user_id=data["user_id"],
+        job_id=data["job_id"],
+        cover_letter=data["cover_letter"],
+        status=data.get("status", "pending")
     )
 
     db.session.add(new_application)
@@ -162,12 +220,14 @@ def create_application():
 
     return jsonify(new_application.to_dict()), 201
 
-@app.route("/jobs/<int:job_id>/applications", methods = ["GET"])
+
+@app.route("/jobs/<int:job_id>/applications", methods=["GET"])
 def get_applications_by_id(job_id):
     apps = Application.query.filter_by(job_id=job_id).all()
     return jsonify([application.to_dict() for application in apps])
 
-@app.route("/users/<int:user_id>/applications", methods = ["GET"])
+
+@app.route("/users/<int:user_id>/applications", methods=["GET"])
 def get_user_applications(user_id):
     apps = Application.query.filter_by(user_id=user_id).all()
 
@@ -179,5 +239,3 @@ def get_user_applications(user_id):
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
-
-
