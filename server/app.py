@@ -8,6 +8,7 @@ from extensions import db, bcrypt
 app = Flask(__name__)
 app.secret_key = "super-secret-key"
 
+
 CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
@@ -27,7 +28,8 @@ def load_logged_in_user():
     if user_id is None:
         g.user = None
     else:
-        g.user = User.query.get(user_id)
+        g.user = User.query.filter_by(id=user_id).first()  # <-- safer
+        print("Loaded user:", g.user)  # Debug
 
 
 # ----------------------
@@ -61,7 +63,8 @@ def login():
         "user": {
             "id": user.id,
             "username": user.username,
-            "role": user.role
+            "role": user.role,
+            "email": user.email
         }
     }), 200
 
@@ -76,7 +79,8 @@ def check_session():
         "user": {
             "id": g.user.id,
             "username": g.user.username,
-            "role": g.user.role
+            "role": g.user.role,
+            "email": g.user.email,
         }
     }), 200
 
@@ -213,6 +217,8 @@ def create_application():
         user_id=data["user_id"],
         job_id=data["job_id"],
         cover_letter=data["cover_letter"],
+        name=data.get("name"),
+        email=data.get("email"),
         status=data.get("status", "pending")
     )
 
@@ -220,6 +226,7 @@ def create_application():
     db.session.commit()
 
     return jsonify(new_application.to_dict()), 201
+
 
 
 @app.route("/jobs/<int:job_id>/applications", methods=["GET"])
@@ -231,11 +238,52 @@ def get_applications_by_id(job_id):
 @app.route("/users/<int:user_id>/applications", methods=["GET"])
 def get_user_applications(user_id):
     apps = Application.query.filter_by(user_id=user_id).all()
+    result = []
 
-    if not apps:
-        return jsonify({"message": "No applications found for this user"}), 404
+    for a in apps:
+        job_info = None
+        if a.job:  # job might be missing
+            job_info = {
+                "title": a.job.title,
+                "company": a.job.company,
+                "location": a.job.location
+            }
 
-    return jsonify([a.to_dict() for a in apps]), 200
+        result.append({
+            "id": a.id,
+            "user_id": a.user_id,
+            "job_id": a.job_id,
+            "cover_letter": a.cover_letter,
+            "status": a.status,
+            "name": a.name,
+            "email": a.email,
+            "job": job_info
+        })
+
+    return jsonify(result), 200
+
+@app.route("/applications/<int:app_id>", methods=["PATCH"])
+def update_application(app_id):
+    app_entry = Application.query.get_or_404(app_id)
+    data = request.json
+    if "status" in data:
+        app_entry.status = data["status"]
+        db.session.commit()
+    return jsonify(app_entry.to_dict())
+
+@app.route("/applications/<int:id>", methods=["DELETE"])
+def delete_application(id):
+    application = Application.query.get_or_404(id)
+
+    # Optional: check that logged-in user owns this application
+    if g.user is None or g.user.id != application.user_id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    db.session.delete(application)
+    db.session.commit()
+    return jsonify({"message": "Application withdrawn successfully"}), 200
+
+
 
 
 if __name__ == "__main__":
