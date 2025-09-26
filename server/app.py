@@ -205,8 +205,9 @@ def get_applications():
 def create_application():
     data = request.get_json()
 
+    # Validate required fields
     if not data.get("user_id") or not data.get("job_id") or not data.get("cover_letter"):
-        return jsonify({"error": "user id, job id and cover letter required"}), 400
+        return jsonify({"error": "user_id, job_id and cover_letter are required"}), 400
 
     new_application = Application(
         user_id=data["user_id"],

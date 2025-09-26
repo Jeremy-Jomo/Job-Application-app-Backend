@@ -71,6 +71,8 @@ class Application(db.Model, SerializerMixin):
     __tablename__ = 'applications'
 
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=True)
+    email = db.Column(db.String, nullable=True)
     status = db.Column(db.String, nullable=False, default='pending')
     cover_letter = db.Column(db.String, nullable=True)
 
@@ -91,7 +93,9 @@ class Application(db.Model, SerializerMixin):
             "user_id": self.user_id,
             "job_id": self.job_id,
             "cover_letter": self.cover_letter,
-            "status": self.status
+            "status": self.status,
+            "name": self.name,
+            "email": self.email,
         }
 
 
