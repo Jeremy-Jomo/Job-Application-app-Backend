@@ -1,6 +1,6 @@
 # seed.py
 from app import app
-from models import  User, Job, Application
+from server.models import  User, Job, Application
 from faker import Faker
 import random
 from extensions import db
