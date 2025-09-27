@@ -8,6 +8,7 @@ from server.extensions import db, bcrypt
 app = Flask(__name__)
 app.secret_key = "super-secret-key"
 
+
 CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
@@ -27,7 +28,8 @@ def load_logged_in_user():
     if user_id is None:
         g.user = None
     else:
-        g.user = User.query.get(user_id)
+        g.user = User.query.filter_by(id=user_id).first()  # <-- safer
+        print("Loaded user:", g.user)  # Debug
 
 
 # ----------------------
@@ -61,7 +63,8 @@ def login():
         "user": {
             "id": user.id,
             "username": user.username,
-            "role": user.role
+            "role": user.role,
+            "email": user.email
         }
     }), 200
 
@@ -76,7 +79,8 @@ def check_session():
         "user": {
             "id": g.user.id,
             "username": g.user.username,
-            "role": g.user.role
+            "role": g.user.role,
+            "email": g.user.email,
         }
     }), 200
 
@@ -135,9 +139,13 @@ def create_user():
 @app.route("/jobs", methods=["GET"])
 def get_jobs():
     jobs = Job.query.all()
-    return [job.to_dict(only=("id", "title", "description", "company", "location", "user_id")) for job in jobs], 200
+    return jsonify([
+        job.to_dict(only=("id", "title", "description", "company", "location", "user_id"))
+        for job in jobs
+    ]), 200
 
 
+# ✅ Create a job (Employer only)
 @app.route("/jobs", methods=["POST"])
 def create_job():
     if not g.user:
@@ -159,38 +167,54 @@ def create_job():
         description=description,
         company=company,
         location=location,
-        user_id=g.user.id  # ✅ use logged-in employer
+        user_id=g.user.id  # ✅ always assign to logged-in employer
     )
     db.session.add(job)
     db.session.commit()
+
     return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id"))), 201
 
 
+# ✅ Get a single job
 @app.route("/jobs/<int:id>", methods=["GET"])
 def get_job(id):
     job = Job.query.get_or_404(id)
-    return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id")))
+    return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id"))), 200
 
 
-@app.route("/jobs/<int:id>", methods=["PUT"])
+# ✅ Update a job (Employer only, must own the job)
+@app.route("/jobs/<int:id>", methods=["PATCH"])
 def update_job(id):
+    if not g.user:
+        return jsonify({"error": "Unauthorized"}), 401
+
     job = Job.query.get_or_404(id)
+    if job.user_id != g.user.id:
+        return jsonify({"error": "Forbidden – you don’t own this job"}), 403
+
     data = request.get_json()
     job.title = data.get("title", job.title)
     job.description = data.get("description", job.description)
     job.company = data.get("company", job.company)
     job.location = data.get("location", job.location)
+
     db.session.commit()
-    return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id")))
+    return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id"))), 200
 
 
+# ✅ Delete a job (Employer only, must own the job)
 @app.route("/jobs/<int:id>", methods=["DELETE"])
 def delete_job(id):
+    if not g.user:
+        return jsonify({"error": "Unauthorized"}), 401
+
     job = Job.query.get_or_404(id)
+    if job.user_id != g.user.id:
+        return jsonify({"error": "Forbidden – you don’t own this job"}), 403
+
     db.session.delete(job)
     db.session.commit()
-    return jsonify({"message": "Job deleted"})
-
+    return jsonify({"message": "Job deleted successfully"}), 200
 
 # ----------------------
 # Applications routes
@@ -213,6 +237,8 @@ def create_application():
         user_id=data["user_id"],
         job_id=data["job_id"],
         cover_letter=data["cover_letter"],
+        name=data.get("name"),
+        email=data.get("email"),
         status=data.get("status", "pending")
     )
 
@@ -220,6 +246,7 @@ def create_application():
     db.session.commit()
 
     return jsonify(new_application.to_dict()), 201
+
 
 
 @app.route("/jobs/<int:job_id>/applications", methods=["GET"])
@@ -231,12 +258,55 @@ def get_applications_by_id(job_id):
 @app.route("/users/<int:user_id>/applications", methods=["GET"])
 def get_user_applications(user_id):
     apps = Application.query.filter_by(user_id=user_id).all()
+    result = []
 
-    if not apps:
-        return jsonify({"message": "No applications found for this user"}), 404
+    for a in apps:
+        job_info = None
+        if a.job:  # job might be missing
+            job_info = {
+                "title": a.job.title,
+                "company": a.job.company,
+                "location": a.job.location
+            }
 
-    return jsonify([a.to_dict() for a in apps]), 200
+        result.append({
+            "id": a.id,
+            "user_id": a.user_id,
+            "job_id": a.job_id,
+            "cover_letter": a.cover_letter,
+            "status": a.status,
+            "name": a.name,
+            "email": a.email,
+            "job": job_info
+        })
 
+    return jsonify(result), 200
+
+
+
+
+@app.route("/applications/<int:application_id>", methods=["PATCH"])
+def update_application(application_id):
+    application = Application.query.get_or_404(application_id)
+    data = request.get_json()
+
+    new_status = data.get("status")
+    if new_status not in ["pending", "accepted", "rejected"]:
+        return {"error": "Invalid status"}, 400
+
+    application.status = new_status
+    db.session.commit()
+
+    return application.to_dict(), 200
+@app.route('/applications/<int:id>', methods=['DELETE'])
+def delete_application(id):
+    app = Application.query.get(id)
+    if not app:
+        return jsonify({"error": "Application not found"}), 404
+
+    db.session.delete(app)
+    db.session.commit()
+    return jsonify({"message": "Application deleted"}), 200
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
