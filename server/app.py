@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from sqlalchemy_serializer import SerializerMixin
 from flask_cors import CORS
 from server.extensions import db, bcrypt
+import os
 
 app = Flask(__name__)
 app.secret_key = "super-secret-key"
@@ -11,7 +12,7 @@ app.secret_key = "super-secret-key"
 
 CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db.init_app(app)
@@ -309,4 +310,8 @@ def delete_application(id):
     return jsonify({"message": "Application deleted"}), 200
 
 if __name__ == "__main__":
-    app.run(port=5000, debug=True)
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        debug=True
+    )
