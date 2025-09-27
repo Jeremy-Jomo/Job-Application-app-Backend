@@ -1,9 +1,9 @@
-from models import User, Job, Application
+from server.models import User, Job, Application
 from flask import Flask, request, jsonify, session, g
 from flask_migrate import Migrate
 from sqlalchemy_serializer import SerializerMixin
 from flask_cors import CORS
-from extensions import db, bcrypt
+from server.extensions import db, bcrypt
 
 app = Flask(__name__)
 app.secret_key = "super-secret-key"
