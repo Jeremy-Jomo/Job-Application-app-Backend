@@ -18,9 +18,7 @@ app.config["SESSION_COOKIE_SECURE"] = False  # ⚠️ allow cookies over http://
 
 # 🔧 CRITICAL FIX: Add your actual frontend domain
 CORS(app, supports_credentials=True, origins=[
-    "http://localhost:5173",
-    "https://your-frontend-domain.vercel.app",  # Replace with your actual frontend URL
-    "https://your-frontend-domain.netlify.app"   # Or whatever your frontend domain is
+    "http://localhost:5173"
 ])
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
