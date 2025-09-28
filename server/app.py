@@ -16,8 +16,12 @@ app.config.update(
 app.config["SESSION_COOKIE_SAMESITE"] = "None"
 app.config["SESSION_COOKIE_SECURE"] = False  # ⚠️ allow cookies over http://localhost
 
-
-CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
+# 🔧 CRITICAL FIX: Add your actual frontend domain
+CORS(app, supports_credentials=True, origins=[
+    "http://localhost:5173",
+    "https://your-frontend-domain.vercel.app",  # Replace with your actual frontend URL
+    "https://your-frontend-domain.netlify.app"   # Or whatever your frontend domain is
+])
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -36,7 +40,7 @@ def load_logged_in_user():
     if user_id is None:
         g.user = None
     else:
-        g.user = User.query.filter_by(id=user_id).first()  # <-- safer
+        g.user = User.query.filter_by(id=user_id).first()
         print("Loaded user:", g.user)  # Debug
 
 
@@ -77,10 +81,11 @@ def login():
     }), 200
 
 
+# 🔧 CRITICAL FIX: Don't return 401 when no session exists
 @app.route("/check-session", methods=["GET"])
 def check_session():
     if not g.user:
-        return jsonify({"logged_in": False}), 401
+        return jsonify({"logged_in": False}), 200  # Changed from 401 to 200
 
     return jsonify({
         "logged_in": True,
@@ -95,9 +100,8 @@ def check_session():
 
 @app.route("/logout", methods=["POST"])
 def logout():
-    session.pop("user_id", None)
+    session.clear()  # 🔧 Clear entire session instead of just popping user_id
     return jsonify({"message": "Logged out"}), 200
-
 
 
 # ----------------------
@@ -106,13 +110,15 @@ def logout():
 @app.route("/users", methods=["GET"])
 def get_users():
     users = User.query.all()
-    return [user.to_dict(only=("id", "username", "email", "role")) for user in users], 200
+    return jsonify([user.to_dict(only=("id", "username", "email", "role")) for user in users]), 200
 
 
 @app.route("/users/<int:id>")
 def get_user_by_id(id):
     user = User.query.get(id)
-    return user.to_dict(only=("id", "username", "email", "role")), 200
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify(user.to_dict(only=("id", "username", "email", "role"))), 200
 
 
 @app.route("/users", methods=["POST"])
@@ -123,13 +129,13 @@ def create_user():
         return jsonify({"success": False, "message": "Email already registered"}), 400
 
     if not data.get("username") or not data.get("email") or not data.get("password"):
-        return jsonify({"error": "username, email and password are required"})
+        return jsonify({"error": "username, email and password are required"}), 400
 
     new_user = User(
         username=data["username"],
         email=data["email"],
         password=data["password"],
-        role=data.get("role", "jobseeker")  # default role
+        role=data.get("role", "jobseeker")
     )
 
     db.session.add(new_user)
@@ -153,7 +159,6 @@ def get_jobs():
     ]), 200
 
 
-# ✅ Create a job (Employer only)
 @app.route("/jobs", methods=["POST"])
 def create_job():
     if not g.user:
@@ -175,7 +180,7 @@ def create_job():
         description=description,
         company=company,
         location=location,
-        user_id=g.user.id  # ✅ always assign to logged-in employer
+        user_id=g.user.id
     )
     db.session.add(job)
     db.session.commit()
@@ -183,14 +188,12 @@ def create_job():
     return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id"))), 201
 
 
-# ✅ Get a single job
 @app.route("/jobs/<int:id>", methods=["GET"])
 def get_job(id):
     job = Job.query.get_or_404(id)
     return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id"))), 200
 
 
-# ✅ Update a job (Employer only, must own the job)
 @app.route("/jobs/<int:id>", methods=["PATCH"])
 def update_job(id):
     if not g.user:
@@ -198,7 +201,7 @@ def update_job(id):
 
     job = Job.query.get_or_404(id)
     if job.user_id != g.user.id:
-        return jsonify({"error": "Forbidden – you don’t own this job"}), 403
+        return jsonify({"error": "Forbidden – you don't own this job"}), 403
 
     data = request.get_json()
     job.title = data.get("title", job.title)
@@ -210,7 +213,6 @@ def update_job(id):
     return jsonify(job.to_dict(only=("id", "title", "description", "company", "location", "user_id"))), 200
 
 
-# ✅ Delete a job (Employer only, must own the job)
 @app.route("/jobs/<int:id>", methods=["DELETE"])
 def delete_job(id):
     if not g.user:
@@ -218,28 +220,44 @@ def delete_job(id):
 
     job = Job.query.get_or_404(id)
     if job.user_id != g.user.id:
-        return jsonify({"error": "Forbidden – you don’t own this job"}), 403
+        return jsonify({"error": "Forbidden – you don't own this job"}), 403
 
     db.session.delete(job)
     db.session.commit()
     return jsonify({"message": "Job deleted successfully"}), 200
 
+
 # ----------------------
 # Applications routes
 # ----------------------
+# 🔧 FIXED: Add username from user relationship
 @app.route("/applications", methods=["GET"])
 def get_applications():
     applications = Application.query.all()
-    return jsonify([application.to_dict() for application in applications])
+    result = []
+    for app in applications:
+        app_data = app.to_dict()
+        # Add username from user relationship if it exists
+        if hasattr(app, 'user') and app.user:
+            app_data['username'] = app.user.username
+        result.append(app_data)
+    return jsonify(result)
 
 
 @app.route("/applications", methods=["POST"])
 def create_application():
     data = request.get_json()
 
-    # Validate required fields
     if not data.get("user_id") or not data.get("job_id") or not data.get("cover_letter"):
         return jsonify({"error": "user_id, job_id and cover_letter are required"}), 400
+
+    # 🔧 Check for duplicate applications
+    existing_app = Application.query.filter_by(
+        user_id=data["user_id"],
+        job_id=data["job_id"]
+    ).first()
+    if existing_app:
+        return jsonify({"error": "You have already applied for this job"}), 400
 
     new_application = Application(
         user_id=data["user_id"],
@@ -256,11 +274,18 @@ def create_application():
     return jsonify(new_application.to_dict()), 201
 
 
-
+# 🔧 FIXED: Add username from user relationship
 @app.route("/jobs/<int:job_id>/applications", methods=["GET"])
 def get_applications_by_id(job_id):
     apps = Application.query.filter_by(job_id=job_id).all()
-    return jsonify([application.to_dict() for application in apps])
+    result = []
+    for app in apps:
+        app_data = app.to_dict()
+        # Add username from user relationship if it exists
+        if hasattr(app, 'user') and app.user:
+            app_data['username'] = app.user.username
+        result.append(app_data)
+    return jsonify(result)
 
 
 @app.route("/users/<int:user_id>/applications", methods=["GET"])
@@ -270,7 +295,7 @@ def get_user_applications(user_id):
 
     for a in apps:
         job_info = None
-        if a.job:  # job might be missing
+        if hasattr(a, 'job') and a.job:
             job_info = {
                 "title": a.job.title,
                 "company": a.job.company,
@@ -291,8 +316,6 @@ def get_user_applications(user_id):
     return jsonify(result), 200
 
 
-
-
 @app.route("/applications/<int:application_id>", methods=["PATCH"])
 def update_application(application_id):
     application = Application.query.get_or_404(application_id)
@@ -300,21 +323,26 @@ def update_application(application_id):
 
     new_status = data.get("status")
     if new_status not in ["pending", "accepted", "rejected"]:
-        return {"error": "Invalid status"}, 400
+        return jsonify({"error": "Invalid status"}), 400
 
     application.status = new_status
     db.session.commit()
 
-    return application.to_dict(), 200
+    # Return updated application with username if available
+    app_data = application.to_dict()
+    if hasattr(application, 'user') and application.user:
+        app_data['username'] = application.user.username
+
+    return jsonify(app_data), 200
+
+
 @app.route('/applications/<int:id>', methods=['DELETE'])
 def delete_application(id):
-    app = Application.query.get(id)
-    if not app:
-        return jsonify({"error": "Application not found"}), 404
-
+    app = Application.query.get_or_404(id)
     db.session.delete(app)
     db.session.commit()
     return jsonify({"message": "Application deleted"}), 200
+
 
 if __name__ == "__main__":
     app.run(
