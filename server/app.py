@@ -8,6 +8,10 @@ import os
 
 app = Flask(__name__)
 app.secret_key = "super-secret-key"
+app.config.update(
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True
+)
 
 
 CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
