@@ -8,17 +8,16 @@ import os
 
 app = Flask(__name__)
 app.secret_key = "super-secret-key"
-app.config.update(
-    SESSION_COOKIE_SAMESITE="None",
-    SESSION_COOKIE_SECURE=True
-)
-
+# For local development with deployed backend
 app.config["SESSION_COOKIE_SAMESITE"] = "None"
-app.config["SESSION_COOKIE_SECURE"] = False  # ⚠️ allow cookies over http://localhost
+app.config["SESSION_COOKIE_SECURE"] = False
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+
 
 # 🔧 CRITICAL FIX: Add your actual frontend domain
 CORS(app, supports_credentials=True, origins=[
-    "http://localhost:5173"
+    "http://localhost:5173",
+
 ])
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
@@ -35,12 +34,14 @@ migrate = Migrate(app, db)
 @app.before_request
 def load_logged_in_user():
     user_id = session.get("user_id")
+    print(f"BEFORE_REQUEST: Session contents: {dict(session)}")
+    print(f"BEFORE_REQUEST: User ID from session: {user_id}")
+
     if user_id is None:
         g.user = None
     else:
         g.user = User.query.filter_by(id=user_id).first()
-        print("Loaded user:", g.user)  # Debug
-
+        print(f"BEFORE_REQUEST: Loaded user: {g.user}")
 
 # ----------------------
 # Route tester
@@ -67,6 +68,9 @@ def login():
     session["user_id"] = user.id
     session["role"] = user.role
 
+    # Add debug logging
+    print(f"LOGIN: Set session for user {user.id}, session contents: {dict(session)}")
+
     return jsonify({
         "success": True,
         "message": "Login successful",
@@ -77,7 +81,6 @@ def login():
             "email": user.email
         }
     }), 200
-
 
 # 🔧 CRITICAL FIX: Don't return 401 when no session exists
 @app.route("/check-session", methods=["GET"])
