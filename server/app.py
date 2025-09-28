@@ -17,6 +17,7 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 # 🔧 CRITICAL FIX: Add your actual frontend domain
 CORS(app, supports_credentials=True, origins=[
     "http://localhost:5173",
+    "https://jobconnecters-git-main-jeremykirubi-5207s-projects.vercel.app/"
 
 ])
 
