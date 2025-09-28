@@ -13,6 +13,9 @@ app.config.update(
     SESSION_COOKIE_SECURE=True
 )
 
+app.config["SESSION_COOKIE_SAMESITE"] = "None"
+app.config["SESSION_COOKIE_SECURE"] = False  # ⚠️ allow cookies over http://localhost
+
 
 CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
 
