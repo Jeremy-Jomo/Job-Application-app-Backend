@@ -9,10 +9,8 @@ import os
 app = Flask(__name__)
 app.secret_key = "super-secret-key"
 
-# ✅ Allow cookies for cross-site
 app.config["SESSION_COOKIE_SAMESITE"] = "None"
-app.config["SESSION_COOKIE_SECURE"] = True  # must be HTTPS in production
-
+app.config["SESSION_COOKIE_SECURE"] = False  # ⚠️ allow cookies over http://localhost
 
 
 CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
