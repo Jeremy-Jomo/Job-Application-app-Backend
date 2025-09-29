@@ -9,9 +9,11 @@ import os
 app = Flask(__name__)
 app.secret_key = "super-secret-key"
 # For local development with deployed backend
-app.config["SESSION_COOKIE_SAMESITE"] = "None"
-app.config["SESSION_COOKIE_SECURE"] = False
-app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config.update(
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True,   # must be True on HTTPS
+    SESSION_COOKIE_HTTPONLY=True
+)
 
 
 # 🔧 CRITICAL FIX: Add your actual frontend domain
