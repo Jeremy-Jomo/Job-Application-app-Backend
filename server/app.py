@@ -19,7 +19,7 @@ app.config.update(
 # 🔧 CRITICAL FIX: Add your actual frontend domain
 CORS(app, supports_credentials=True, origins=[
     "http://localhost:5173",
-    "https://jobconnecters-git-main-jeremykirubi-5207s-projects.vercel.app/"
+    "https://jobconnecters-git-main-jeremykirubi-5207s-projects.vercel.app"
 
 ])
 
@@ -51,7 +51,7 @@ def load_logged_in_user():
 # ----------------------
 @app.route("/")
 def home():
-    return "<h1>JOMO THE GOAT</h1>"
+    return "<h1>SHARON THE GOAT</h1>"
 
 
 # ----------------------
