@@ -18,7 +18,7 @@ app.config.update(
 
 # 🔧 CRITICAL FIX: Add your actual frontend domain
 CORS(app, supports_credentials=True, origins=[
-    # "http://localhost:5173",
+    "http://localhost:5173",
     "https://jobconnecters.vercel.app"
 
 ])
